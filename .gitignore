@@ -1,0 +1,34 @@
+# ── Python / Node ──────────────────────────────────────────────
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/           # directory named .env (different from .env file)
+
+# ── SECRET FILES — never commit these ──────────────────────────
+# Matches .env at any directory depth
+.env
+.env.*
+!.env.example   # allow the safe example template to be committed
+
+# ── Production builds ───────────────────────────────────────────
+/frontend/dist/
+
+# ── IDE / OS ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+desktop.ini
