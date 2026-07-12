@@ -8,9 +8,9 @@ phases:
   build:
     commands:
       - echo Building image...
-      - docker build -t careercompass-ai .
-      - docker tag careercompass-ai:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/careercompass-ai:latest
+      - docker build -t careercompass .
+      - docker tag careercompass:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/careercompass:latest
   post_build:
     commands:
       - echo Pushing image...
-      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/careercompass-ai:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/careercompass:latest
