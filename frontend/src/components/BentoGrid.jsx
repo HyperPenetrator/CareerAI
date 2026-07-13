@@ -107,7 +107,7 @@ function CareerCard({ rec, index }) {
     >
       <div className="career-card-topbar" />
       <div className="career-card-body">
-        <div className="career-card-match-label">Match {String(index + 1).padStart(2, '0')}</div>
+        <div className="career-card-match-label">MATCH {String(index + 1).padStart(2, '0')}</div>
         <div className="career-card-title-row">
           <h3 className="career-card-title">{rec.title}</h3>
           <ScoreRing pct={pct} />
@@ -177,22 +177,25 @@ function ContextChips({ formData }) {
   ].filter(Boolean);
 
   return (
-    <div className="results-context-chips">
-      {chips.map((c, i) => (
-        <span
-          key={i}
-          className="context-chip"
-          data-chip-type={c.type}
-          data-chip-val={c.text}
-        >
-          {c.text}
-        </span>
-      ))}
+    <div className="results-context-chips-wrapper">
+      <div className="results-context-label">YOUR INPUT</div>
+      <div className="results-context-chips">
+        {chips.map((c, i) => (
+          <span
+            key={i}
+            className="context-chip"
+            data-chip-type={c.type}
+            data-chip-val={c.text}
+          >
+            {c.text}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
+function SvgOverlay({ wrapperRef, parsedData, isStreaming }) {
   const [lines, setLines] = useState([]);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
@@ -222,24 +225,12 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
         const cardX = cardRect.left - wrapperRect.left + cardRect.width / 2;
         const cardY = cardRect.top - wrapperRect.top; // Connect to the top center of card
 
-        // Parse specific "why" or reasoning for each match.
-        // We'll extract a short snippet from cardRec.whyFits (rationale)
-        let shortWhy = '';
-        if (cardRec.whyFits) {
-          const sentences = cardRec.whyFits.split(/[.!?]/).map(s => s.trim()).filter(Boolean);
-          // Pick first sentence as the concise floating label
-          if (sentences.length > 0) {
-            shortWhy = sentences[0];
-            if (shortWhy.length > 85) {
-              shortWhy = shortWhy.slice(0, 82) + '...';
-            }
-          }
-        }
-
         // For each parameter category (education, experience, skill, workStyle, riskTolerance),
         // we find the single matching chip and create exactly one line for it to prevent clutter.
         const parameterTypes = ['education', 'experience', 'skill', 'workStyle', 'riskTolerance'];
         const contextText = (cardTitle + ' ' + cardRec.whyFits + ' ' + (cardRec.gaps || []).join(' ')).toLowerCase();
+
+        const activeMatches = [];
 
         parameterTypes.forEach(pType => {
           let matchedChipEl = null;
@@ -252,56 +243,42 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
 
             if (chipType === pType) {
               const cleanVal = chipVal.replace(/Risk:\s*/i, '').toLowerCase();
-              // Education & experience connect as baseline inputs. WorkStyle, risk, and skills connect if they match context.
               const isMatch = (pType === 'education' || pType === 'experience') || contextText.includes(cleanVal);
-              
+
               if (isMatch) {
                 matchedChipEl = chipEl;
                 matchedVal = chipVal;
-                break; // Take the first matching chip for this category
+                break;
               }
             }
           }
 
           if (matchedChipEl) {
-            const chipRect = matchedChipEl.getBoundingClientRect();
-            const chipX = chipRect.left - wrapperRect.left + chipRect.width / 2;
-            const chipY = chipRect.top - wrapperRect.top + chipRect.height;
-
-            // Control points for bezier curve
-            const cp1x = chipX;
-            const cp1y = chipY + (cardY - chipY) / 2;
-            const cp2x = cardX;
-            const cp2y = cardY - (cardY - chipY) / 2;
-
-            const pathData = `M ${chipX} ${chipY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cardX} ${cardY}`;
-
-            // Midpoint for floating label
-            const t = 0.5;
-            const labelX = (1-t)**3 * chipX + 3*(1-t)**2*t * cp1x + 3*(1-t)*t**2 * cp2x + t**3 * cardX;
-            const labelY = (1-t)**3 * chipY + 3*(1-t)**2*t * cp1y + 3*(1-t)*t**2 * cp2y + t**3 * cardY;
-
-            // Formulate human readable category label - using extremely short terms to keep UI visible and uncluttered
-            const categoryNames = {
-              education: 'Edu',
-              experience: 'Exp',
-              skill: 'Skill',
-              workStyle: 'Work',
-              riskTolerance: 'Risk'
-            };
-            
-            // Render a short, concise parameter matching label
-            const labelText = `${categoryNames[pType]}: ${matchedVal.replace(/Risk:\s*/i, '')}`;
-
-            newLines.push({
-              id: `${pType}-${cardId}`,
-              cardId: String(cardId),
-              pathData,
-              labelX,
-              labelY,
-              why: labelText
-            });
+            activeMatches.push({ pType, matchedChipEl, matchedVal });
           }
+        });
+
+        // Draw connections and space their t parameters evenly
+        const matchCount = activeMatches.length;
+        activeMatches.forEach((match, index) => {
+          const { pType, matchedChipEl } = match;
+          const chipRect = matchedChipEl.getBoundingClientRect();
+          const chipX = chipRect.left - wrapperRect.left + chipRect.width / 2;
+          const chipY = chipRect.top - wrapperRect.top + chipRect.height;
+
+          // Control points for bezier curve
+          const cp1x = chipX;
+          const cp1y = chipY + (cardY - chipY) / 2;
+          const cp2x = cardX;
+          const cp2y = cardY - (cardY - chipY) / 2;
+
+          const pathData = `M ${chipX} ${chipY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cardX} ${cardY}`;
+
+          newLines.push({
+            id: `${pType}-${cardId}`,
+            cardId: String(cardId),
+            pathData
+          });
         });
       });
 
@@ -335,43 +312,21 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
   return (
     <div className="svg-overlay-container" style={{ width: dimensions.width, height: dimensions.height }}>
       <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
-        {lines.map(line => {
-          const isCardHovered = hoveredCardId !== null;
-          const isThisCardHovered = String(hoveredCardId) === line.cardId;
-          // If a card is hovered, only show matching lines highlighted. Otherwise show all faintly.
-          const opacity = isCardHovered ? (isThisCardHovered ? 0.9 : 0.05) : 0.2;
-          return (
-            <path
-              key={line.id}
-              d={line.pathData}
-              className="connecting-line"
-              style={{ opacity, transition: 'opacity 0.25s ease' }}
-            />
-          );
-        })}
+        {lines.map(line => (
+          <path
+            key={line.id}
+            d={line.pathData}
+            className="connecting-line"
+            style={{ opacity: 0.65 }}
+          />
+        ))}
       </svg>
-      {lines.map(line => {
-        // Floating why label only displays when its specific card is hovered to keep overlay uncluttered
-        const isThisCardHovered = String(hoveredCardId) === line.cardId;
-        if (!isThisCardHovered) return null;
-
-        return (
-          <div
-            key={`label-${line.id}`}
-            className="floating-why-label"
-            style={{ left: line.labelX, top: line.labelY }}
-          >
-            {line.why}
-          </div>
-        );
-      })}
     </div>
   );
 }
 
 export default function BentoGrid({ streamText, onReset, isStreaming, formData }) {
   const [parsedData, setParsedData] = useState([]);
-  const [hoveredCardId, setHoveredCardId] = useState(null);
   const wrapperRef = React.useRef(null);
 
   useEffect(() => {
@@ -396,7 +351,7 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
         );
         return;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 2. Streaming partial parse via regex (handles variable streaming lengths)
     const objectRegex =
@@ -441,13 +396,12 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
           wrapperRef={wrapperRef}
           parsedData={parsedData}
           isStreaming={isStreaming}
-          hoveredCardId={hoveredCardId}
         />
       )}
 
       <div className="results-reset-row">
         <div className="results-header">
-          <h1 className="results-title">Your Career Matches</h1>
+          <div className="results-tagline-text">Based on your skills, interests, and preferences</div>
           <ContextChips formData={formData} />
         </div>
         <button className="btn btn-secondary" onClick={onReset}>← Start Over</button>
@@ -457,14 +411,7 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
       {(resolvedCount > 0 || skeletonCount > 0) && (
         <div className="cards-grid">
           {parsedData.map((rec, i) => (
-            <div
-              key={rec.id}
-              onMouseEnter={() => setHoveredCardId(rec.id)}
-              onMouseLeave={() => setHoveredCardId(null)}
-              style={{ display: 'contents' }}
-            >
-              <CareerCard rec={rec} index={i} />
-            </div>
+            <CareerCard key={rec.id} rec={rec} index={i} />
           ))}
           {Array.from({ length: skeletonCount }, (_, i) => (
             <SkeletonCard key={`skel-${i}`} index={resolvedCount + i} />
