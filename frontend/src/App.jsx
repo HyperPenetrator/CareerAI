@@ -141,7 +141,7 @@ export default function App() {
       </main>
 
       <footer className="site-footer">
-        <span>© {new Date().getFullYear()} CareerCompass AI. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} CareerCompass AI. All rights reserved. ~ made by Team CodeCraft</span>
       </footer>
     </>
   );

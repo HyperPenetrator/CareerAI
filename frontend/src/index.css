@@ -43,16 +43,18 @@ body {
 
 /* ===== HEADER ===== */
 header {
-  padding: 0 2rem;
-  height: 56px;
+  padding: 0.6rem 2rem;
+  min-height: 72px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-card);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
   position: sticky;
   top: 0;
   z-index: 10;
+  gap: 0.2rem;
 }
 
 /* ── Wordmark ── */
@@ -104,16 +106,17 @@ header {
   align-self: center;
 }
 
-/* Tagline on the right */
+/* Tagline underneath */
 .header-tagline {
   font-family: var(--font-sans);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
-  font-weight: 400;
+  font-weight: 500;
+  margin-left: 2.3rem; /* Align with text after logo-icon */
 }
 
 @media (max-width: 500px) {
-  .header-tagline { display: none; }
+  .header-tagline { display: block; }
 }
 
 /* ===== FOOTER ===== */
