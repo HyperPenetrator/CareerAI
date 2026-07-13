@@ -171,6 +171,7 @@ function ContextChips({ formData }) {
   const chips = [
     { type: 'education', text: formData.education },
     { type: 'experience', text: formData.experience },
+    ...(formData.skills || []).map(sk => ({ type: 'skill', text: sk })),
     ...(formData.workStyle || []).map(ws => ({ type: 'workStyle', text: ws })),
     formData.riskTolerance ? { type: 'riskTolerance', text: `Risk: ${formData.riskTolerance}` } : null,
   ].filter(Boolean);
@@ -229,55 +230,85 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
           // Pick first sentence as the concise floating label
           if (sentences.length > 0) {
             shortWhy = sentences[0];
-            if (shortWhy.length > 80) {
-              shortWhy = shortWhy.slice(0, 77) + '...';
+            if (shortWhy.length > 85) {
+              shortWhy = shortWhy.slice(0, 82) + '...';
             }
           }
         }
 
-        chipElements.forEach(chipEl => {
+        // We want to find the single most relevant skill match.
+        // Let's filter the chipElements to find 'skill' types first.
+        let targetChipEl = null;
+        let matchedSkillName = '';
+
+        const contextText = (cardTitle + ' ' + cardRec.whyFits + ' ' + (cardRec.gaps || []).join(' ')).toLowerCase();
+
+        // 1. Try to find a matching skill chip
+        for (const chipEl of chipElements) {
           const chipType = chipEl.getAttribute('data-chip-type');
           const chipVal = chipEl.getAttribute('data-chip-val') || '';
-
-          // Determine if there is a match connection.
-          let isConnected = false;
-          const cleanVal = chipVal.replace(/Risk:\s*/i, '').toLowerCase();
-          const contextText = (cardTitle + ' ' + cardRec.whyFits + ' ' + (cardRec.gaps || []).join(' ')).toLowerCase();
-
-          if (chipType === 'education' || chipType === 'experience') {
-            isConnected = true;
-          } else {
-            isConnected = contextText.includes(cleanVal);
+          if (chipType === 'skill') {
+            const cleanVal = chipVal.toLowerCase();
+            if (contextText.includes(cleanVal)) {
+              targetChipEl = chipEl;
+              matchedSkillName = chipVal;
+              break; // Found the best matching skill!
+            }
           }
+        }
 
-          if (isConnected) {
-            const chipRect = chipEl.getBoundingClientRect();
-            const chipX = chipRect.left - wrapperRect.left + chipRect.width / 2;
-            const chipY = chipRect.top - wrapperRect.top + chipRect.height; // Connect to bottom center of chip
-
-            // Calculate control points for a smooth cubic bezier curve
-            const cp1x = chipX;
-            const cp1y = chipY + (cardY - chipY) / 2;
-            const cp2x = cardX;
-            const cp2y = cardY - (cardY - chipY) / 2;
-
-            const pathData = `M ${chipX} ${chipY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cardX} ${cardY}`;
-
-            // Floating label position (midpoint of bezier curve)
-            const t = 0.5;
-            const labelX = (1-t)**3 * chipX + 3*(1-t)**2*t * cp1x + 3*(1-t)*t**2 * cp2x + t**3 * cardX;
-            const labelY = (1-t)**3 * chipY + 3*(1-t)**2*t * cp1y + 3*(1-t)*t**2 * cp2y + t**3 * cardY;
-
-            newLines.push({
-              id: `${chipType}-${chipVal}-${cardId}`,
-              cardId: String(cardId),
-              pathData,
-              labelX,
-              labelY,
-              why: shortWhy || 'Direct Match'
-            });
+        // 2. Fallback to first skill chip if none match textually, or to education/experience
+        if (!targetChipEl) {
+          for (const chipEl of chipElements) {
+            const chipType = chipEl.getAttribute('data-chip-type');
+            const chipVal = chipEl.getAttribute('data-chip-val') || '';
+            if (chipType === 'skill') {
+              targetChipEl = chipEl;
+              matchedSkillName = chipVal;
+              break;
+            }
           }
-        });
+        }
+
+        // 3. Fallback to education/experience if there are no skills
+        if (!targetChipEl) {
+          for (const chipEl of chipElements) {
+            const chipType = chipEl.getAttribute('data-chip-type');
+            if (chipType === 'education' || chipType === 'experience') {
+              targetChipEl = chipEl;
+              matchedSkillName = chipEl.getAttribute('data-chip-val') || '';
+              break;
+            }
+          }
+        }
+
+        if (targetChipEl) {
+          const chipRect = targetChipEl.getBoundingClientRect();
+          const chipX = chipRect.left - wrapperRect.left + chipRect.width / 2;
+          const chipY = chipRect.top - wrapperRect.top + chipRect.height; // Connect to bottom center of chip
+
+          // Calculate control points for a smooth cubic bezier curve
+          const cp1x = chipX;
+          const cp1y = chipY + (cardY - chipY) / 2;
+          const cp2x = cardX;
+          const cp2y = cardY - (cardY - chipY) / 2;
+
+          const pathData = `M ${chipX} ${chipY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cardX} ${cardY}`;
+
+          // Floating label position (midpoint of bezier curve)
+          const t = 0.5;
+          const labelX = (1-t)**3 * chipX + 3*(1-t)**2*t * cp1x + 3*(1-t)*t**2 * cp2x + t**3 * cardX;
+          const labelY = (1-t)**3 * chipY + 3*(1-t)**2*t * cp1y + 3*(1-t)*t**2 * cp2y + t**3 * cardY;
+
+          newLines.push({
+            id: `single-${cardId}`,
+            cardId: String(cardId),
+            pathData,
+            labelX,
+            labelY,
+            why: `Matches Skill: ${matchedSkillName} — ${shortWhy || 'Direct Fit'}`
+          });
+        }
       });
 
       setLines(newLines);
