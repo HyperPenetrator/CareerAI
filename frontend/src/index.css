@@ -350,6 +350,8 @@ main {
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 2rem;
+  position: relative;
+  z-index: 2;
 }
 
 .results-header {
@@ -386,6 +388,8 @@ main {
   grid-template-columns: repeat(3, 1fr);
   gap: 1.25rem;
   align-items: start;
+  position: relative;
+  z-index: 2;
 }
 
 @media (max-width: 900px) {
