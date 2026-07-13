@@ -33,9 +33,9 @@ function CompassIcon() {
 
 export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [streamText, setStreamText]     = useState('');
-  const [error, setError]               = useState(null);
-  const [showResults, setShowResults]   = useState(false);
+  const [streamText, setStreamText] = useState('');
+  const [error, setError] = useState(null);
+  const [showResults, setShowResults] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
 
   const handleSubmit = async (formData) => {
@@ -45,7 +45,7 @@ export default function App() {
     setShowResults(true);
     setSubmittedData(formData);
 
-    const backendHost = window.location.port
+    const backendHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? `${window.location.protocol}//${window.location.hostname}:8000`
       : '';
     const apiUrl = `${backendHost}/api/recommend`;
@@ -59,7 +59,7 @@ export default function App() {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-      const reader  = response.body.getReader();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -76,8 +76,8 @@ export default function App() {
             const dataStr = trimmed.slice(6);
             try {
               const parsed = JSON.parse(dataStr);
-              if (parsed.error)      setError(parsed.error);
-              else if (parsed.text)  setStreamText(prev => prev + parsed.text);
+              if (parsed.error) setError(parsed.error);
+              else if (parsed.text) setStreamText(prev => prev + parsed.text);
             } catch (e) {
               console.warn('Failed to parse SSE packet:', dataStr, e);
             }
