@@ -281,15 +281,17 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
             const labelX = (1-t)**3 * chipX + 3*(1-t)**2*t * cp1x + 3*(1-t)*t**2 * cp2x + t**3 * cardX;
             const labelY = (1-t)**3 * chipY + 3*(1-t)**2*t * cp1y + 3*(1-t)*t**2 * cp2y + t**3 * cardY;
 
-            // Formulate human readable category label
+            // Formulate human readable category label - using extremely short terms to keep UI visible and uncluttered
             const categoryNames = {
-              education: 'Education',
-              experience: 'Experience',
+              education: 'Edu',
+              experience: 'Exp',
               skill: 'Skill',
-              workStyle: 'Work Preference',
-              riskTolerance: 'Risk Profile'
+              workStyle: 'Work',
+              riskTolerance: 'Risk'
             };
-            const labelText = `Fits ${categoryNames[pType]}: ${matchedVal} — ${shortWhy || 'Direct Fit'}`;
+            
+            // Render a short, concise parameter matching label
+            const labelText = `${categoryNames[pType]}: ${matchedVal.replace(/Risk:\s*/i, '')}`;
 
             newLines.push({
               id: `${pType}-${cardId}`,
