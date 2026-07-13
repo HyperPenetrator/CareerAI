@@ -671,10 +671,10 @@ main {
 
 .connecting-line {
   stroke: var(--accent-fill);
-  stroke-width: 2;
+  stroke-width: 1.5;
   stroke-dasharray: 6, 4;
   fill: none;
-  opacity: 0.75;
+  transition: opacity 0.3s ease, stroke-width 0.3s ease;
   animation: dashMove 30s linear infinite;
 }
 

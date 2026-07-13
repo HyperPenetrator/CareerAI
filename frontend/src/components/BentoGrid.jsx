@@ -191,7 +191,7 @@ function ContextChips({ formData }) {
   );
 }
 
-function SvgOverlay({ wrapperRef, parsedData, isStreaming }) {
+function SvgOverlay({ wrapperRef, parsedData, isStreaming, hoveredCardId }) {
   const [lines, setLines] = useState([]);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
@@ -240,18 +240,13 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming }) {
           const chipVal = chipEl.getAttribute('data-chip-val') || '';
 
           // Determine if there is a match connection.
-          // Education & experience are baseline inputs, work style & risk tolerance are lifestyle indicators.
-          // Let's connect them if the card's rationale/title contains terms matching the chip text.
-          // Fallback: Connect Education and Experience always to display baseline fits, and workStyle/risk if matched.
           let isConnected = false;
           const cleanVal = chipVal.replace(/Risk:\s*/i, '').toLowerCase();
           const contextText = (cardTitle + ' ' + cardRec.whyFits + ' ' + (cardRec.gaps || []).join(' ')).toLowerCase();
 
           if (chipType === 'education' || chipType === 'experience') {
-            // Baseline connection
             isConnected = true;
           } else {
-            // Conditional matching connection
             isConnected = contextText.includes(cleanVal);
           }
 
@@ -275,6 +270,7 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming }) {
 
             newLines.push({
               id: `${chipType}-${chipVal}-${cardId}`,
+              cardId: String(cardId),
               pathData,
               labelX,
               labelY,
@@ -314,29 +310,43 @@ function SvgOverlay({ wrapperRef, parsedData, isStreaming }) {
   return (
     <div className="svg-overlay-container" style={{ width: dimensions.width, height: dimensions.height }}>
       <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
-        {lines.map(line => (
-          <path
-            key={line.id}
-            d={line.pathData}
-            className="connecting-line"
-          />
-        ))}
+        {lines.map(line => {
+          const isCardHovered = hoveredCardId !== null;
+          const isThisCardHovered = String(hoveredCardId) === line.cardId;
+          // If a card is hovered, only show matching lines highlighted. Otherwise show all faintly.
+          const opacity = isCardHovered ? (isThisCardHovered ? 0.9 : 0.05) : 0.2;
+          return (
+            <path
+              key={line.id}
+              d={line.pathData}
+              className="connecting-line"
+              style={{ opacity, transition: 'opacity 0.25s ease' }}
+            />
+          );
+        })}
       </svg>
-      {lines.map(line => (
-        <div
-          key={`label-${line.id}`}
-          className="floating-why-label"
-          style={{ left: line.labelX, top: line.labelY }}
-        >
-          {line.why}
-        </div>
-      ))}
+      {lines.map(line => {
+        // Floating why label only displays when its specific card is hovered to keep overlay uncluttered
+        const isThisCardHovered = String(hoveredCardId) === line.cardId;
+        if (!isThisCardHovered) return null;
+
+        return (
+          <div
+            key={`label-${line.id}`}
+            className="floating-why-label"
+            style={{ left: line.labelX, top: line.labelY }}
+          >
+            {line.why}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 export default function BentoGrid({ streamText, onReset, isStreaming, formData }) {
   const [parsedData, setParsedData] = useState([]);
+  const [hoveredCardId, setHoveredCardId] = useState(null);
   const wrapperRef = React.useRef(null);
 
   useEffect(() => {
@@ -364,8 +374,6 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
     } catch (_) {}
 
     // 2. Streaming partial parse via regex (handles variable streaming lengths)
-    // We parse titles, matchScore, rationale, skillsGap, firstStep. Since targetPositions and topPayingCompanies are arrays of strings,
-    // we also check for their pattern inside the stream.
     const objectRegex =
       /\{\s*"title"\s*:\s*"([\s\S]*?)"\s*,\s*"matchScore"\s*:\s*(\d+)\s*,\s*"rationale"\s*:\s*"([\s\S]*?)"\s*,\s*"skillsGap"\s*:\s*\[([\s\S]*?)\]\s*(?:,\s*"firstStep"\s*:\s*"([\s\S]*?)")?\s*(?:,\s*"targetPositions"\s*:\s*\[([\s\S]*?)\])?\s*(?:,\s*"topPayingCompanies"\s*:\s*\[([\s\S]*?)\])?\s*(?:,\s*"salaryRange"\s*:\s*"([\s\S]*?)")?\s*\}/g;
 
@@ -399,7 +407,6 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
   }, [streamText]);
 
   const resolvedCount = parsedData.length;
-  // Show skeleton cards for unresolved slots while streaming (target 3)
   const skeletonCount = isStreaming ? Math.max(0, 3 - resolvedCount) : 0;
 
   return (
@@ -409,6 +416,7 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
           wrapperRef={wrapperRef}
           parsedData={parsedData}
           isStreaming={isStreaming}
+          hoveredCardId={hoveredCardId}
         />
       )}
 
@@ -424,7 +432,14 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
       {(resolvedCount > 0 || skeletonCount > 0) && (
         <div className="cards-grid">
           {parsedData.map((rec, i) => (
-            <CareerCard key={rec.id} rec={rec} index={i} />
+            <div
+              key={rec.id}
+              onMouseEnter={() => setHoveredCardId(rec.id)}
+              onMouseLeave={() => setHoveredCardId(null)}
+              style={{ display: 'contents' }}
+            >
+              <CareerCard rec={rec} index={i} />
+            </div>
           ))}
           {Array.from({ length: skeletonCount }, (_, i) => (
             <SkeletonCard key={`skel-${i}`} index={resolvedCount + i} />
