@@ -40,7 +40,7 @@ const RISK_OPTIONS = [
   { label: 'High — Entrepreneurial', value: 'High' },
 ];
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 export default function WizardForm({ onSubmit }) {
   const [step, setStep] = useState(1);
@@ -51,9 +51,16 @@ export default function WizardForm({ onSubmit }) {
     interests: [],
     workStyle: [],
     riskTolerance: '',
+    location: {
+      latitude: null,
+      longitude: null,
+      name: ''
+    }
   });
   const [skillInput, setSkillInput] = useState('');
   const [interestInput, setInterestInput] = useState('');
+  const [geoStatus, setGeoStatus] = useState(''); // 'requesting', 'success', 'denied'
+  const [manualLocation, setManualLocation] = useState('');
 
   const nextStep = () => setStep(prev => Math.min(prev + 1, TOTAL_STEPS));
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
@@ -87,6 +94,50 @@ export default function WizardForm({ onSubmit }) {
     }));
   };
 
+  const requestGeolocation = () => {
+    if (!navigator.geolocation) {
+      setGeoStatus('denied');
+      return;
+    }
+    setGeoStatus('requesting');
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        let locationName = 'National Average';
+
+        try {
+          // Attempt a reverse-geocoding lookup or default to lat/lon format
+          const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
+          const data = await res.json();
+          if (data && (data.city || data.principalSubdivision)) {
+            locationName = data.city || data.principalSubdivision;
+          }
+        } catch (e) {
+          console.warn("Could not geocode coordinates", e);
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          location: { latitude, longitude, name: locationName }
+        }));
+        setGeoStatus('success');
+      },
+      (error) => {
+        console.warn("Geolocation permission error", error);
+        setGeoStatus('denied');
+      }
+    );
+  };
+
+  const handleManualLocationSubmit = () => {
+    if (manualLocation.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        location: { ...prev.location, name: manualLocation.trim() }
+      }));
+    }
+  };
+
   const isStepValid = () => {
     switch (step) {
       case 1: return !!formData.education;
@@ -95,6 +146,7 @@ export default function WizardForm({ onSubmit }) {
       case 4: return formData.interests.length > 0;
       case 5: return formData.workStyle.length > 0;
       case 6: return !!formData.riskTolerance;
+      case 7: return true; // Optional geolocation fallback allows progress
       default: return false;
     }
   };
@@ -256,6 +308,52 @@ export default function WizardForm({ onSubmit }) {
                 {label}
               </button>
             ))}
+          </div>
+        </>
+      )}
+
+      {/* Step 7: Geolocation / Location Permission */}
+      {step === 7 && (
+        <>
+          <h2 className="wizard-question">Personalise recommendations with your location?</h2>
+          <p className="wizard-hint">We use location coordinates to customize estimated salary ranges for your region. Denying defaults to national averages.</p>
+          <div className="geolocation-wrap" style={{ margin: '1.5rem 0', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={requestGeolocation}
+              disabled={geoStatus === 'requesting' || geoStatus === 'success'}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              {geoStatus === 'requesting' && 'Accessing Geolocation…'}
+              {geoStatus === 'success' && '✓ Location Auth Success'}
+              {geoStatus !== 'requesting' && geoStatus !== 'success' && 'Share Current Location'}
+            </button>
+
+            {formData.location.name && (
+              <div className="geo-success-badge" style={{ color: 'var(--success)', fontSize: '0.85rem', fontWeight: 600 }}>
+                Detected Region: {formData.location.name} (Lat: {formData.location.latitude?.toFixed(4)}, Lon: {formData.location.longitude?.toFixed(4)})
+              </div>
+            )}
+
+            {geoStatus === 'denied' && (
+              <div className="manual-location-fallback" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <label className="career-card-skills-label" style={{ display: 'block' }}>Enter Region Manually (Optional Fallback)</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    className="tags-input"
+                    style={{ border: '1px solid var(--border)', padding: '0 0.75rem', height: 44 }}
+                    placeholder="e.g. London, San Francisco, Tokyo…"
+                    value={manualLocation}
+                    onChange={e => setManualLocation(e.target.value)}
+                  />
+                  <button type="button" className="btn btn-secondary" onClick={handleManualLocationSubmit}>
+                    Set Region
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

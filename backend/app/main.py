@@ -7,6 +7,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from app.services.gemini import GeminiService
 
+from app.services.linkedin import build_linkedin_jobs_url
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,11 @@ app.add_middleware(
 )
 
 gemini_service = GeminiService()
+
+@app.get("/api/linkedin-url")
+async def linkedin_url(title: str, location: str = "Remote"):
+    url = build_linkedin_jobs_url(title, location)
+    return {"url": url}
 
 @app.post("/api/recommend")
 async def recommend(request: Request):

@@ -49,11 +49,62 @@ function SkeletonCard({ index }) {
   );
 }
 
+function LinkedInJobs({ title }) {
+  const [location, setLocation] = useState('Remote');
+
+  const handleSearch = async () => {
+    const backendHost = window.location.port
+      ? `${window.location.protocol}//${window.location.hostname}:8000`
+      : '';
+    const url = `${backendHost}/api/linkedin-url?title=${encodeURIComponent(title)}&location=${encodeURIComponent(location)}`;
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data && data.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (e) {
+      console.error("Failed to build LinkedIn URL", e);
+      // Fallback
+      window.open(`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(title)}&location=${encodeURIComponent(location)}`, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  return (
+    <div className="linkedin-jobs-section">
+      <div className="career-card-skills-label">Available Jobs on LinkedIn</div>
+      <div className="linkedin-jobs-controls">
+        <select
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          className="linkedin-location-select"
+        >
+          <option value="Remote">Remote</option>
+          <option value="United Kingdom">United Kingdom</option>
+          <option value="United States">United States</option>
+          <option value="Germany">Germany</option>
+          <option value="Canada">Canada</option>
+          <option value="India">India</option>
+          <option value="Singapore">Singapore</option>
+        </select>
+        <button className="btn btn-primary btn-sm linkedin-search-btn" onClick={handleSearch}>
+          Search Jobs
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Fully resolved career card */
 function CareerCard({ rec, index }) {
   const pct = parseInt(rec.matchPct, 10) || 0;
   return (
-    <div className="career-card" style={{ animationDelay: `${index * 0.14}s` }}>
+    <div
+      className="career-card"
+      style={{ animationDelay: `${index * 0.14}s` }}
+      data-card-id={rec.id}
+      data-card-title={rec.title}
+    >
       <div className="career-card-topbar" />
       <div className="career-card-body">
         <div className="career-card-match-label">Match {String(index + 1).padStart(2, '0')}</div>
@@ -74,6 +125,35 @@ function CareerCard({ rec, index }) {
           </div>
         )}
 
+        {rec.targetPositions && rec.targetPositions.length > 0 && (
+          <div>
+            <div className="career-card-skills-label">Target Positions</div>
+            <div className="career-card-skills-chips">
+              {rec.targetPositions.map((pos, i) => (
+                <span key={i} className="position-chip">{pos}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {rec.topPayingCompanies && rec.topPayingCompanies.length > 0 && (
+          <div>
+            <div className="career-card-skills-label">Top Paying Companies</div>
+            <div className="companies-row-list">
+              {rec.topPayingCompanies.join(" • ")}
+            </div>
+          </div>
+        )}
+
+        {rec.salaryRange && (
+          <div className="career-salary-box">
+            <span className="salary-icon">💰</span>
+            <span className="salary-range-text">{rec.salaryRange}</span>
+          </div>
+        )}
+
+        <LinkedInJobs title={rec.title} />
+
         {rec.roadmap && rec.roadmap[0] && (
           <div className="career-card-first-step">
             <strong>First Step</strong>
@@ -89,16 +169,167 @@ function CareerCard({ rec, index }) {
 function ContextChips({ formData }) {
   if (!formData) return null;
   const chips = [
-    formData.education,
-    formData.experience,
-    ...(formData.workStyle || []),
-    formData.riskTolerance ? `Risk: ${formData.riskTolerance}` : null,
+    { type: 'education', text: formData.education },
+    { type: 'experience', text: formData.experience },
+    ...(formData.workStyle || []).map(ws => ({ type: 'workStyle', text: ws })),
+    formData.riskTolerance ? { type: 'riskTolerance', text: `Risk: ${formData.riskTolerance}` } : null,
   ].filter(Boolean);
 
   return (
     <div className="results-context-chips">
       {chips.map((c, i) => (
-        <span key={i} className="context-chip">{c}</span>
+        <span
+          key={i}
+          className="context-chip"
+          data-chip-type={c.type}
+          data-chip-val={c.text}
+        >
+          {c.text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function SvgOverlay({ wrapperRef, parsedData, isStreaming }) {
+  const [lines, setLines] = useState([]);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+
+    const updateCoordinates = () => {
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+
+      const wrapperRect = wrapper.getBoundingClientRect();
+      setDimensions({ width: wrapperRect.width, height: wrapperRect.height });
+
+      // Query active chips and cards
+      const chipElements = wrapper.querySelectorAll('.context-chip');
+      const cardElements = wrapper.querySelectorAll('.career-card:not(.skeleton)');
+
+      const newLines = [];
+
+      cardElements.forEach(cardEl => {
+        const cardId = cardEl.getAttribute('data-card-id');
+        const cardTitle = cardEl.getAttribute('data-card-title') || '';
+        const cardRec = parsedData.find(r => String(r.id) === String(cardId));
+        if (!cardRec) return;
+
+        const cardRect = cardEl.getBoundingClientRect();
+        const cardX = cardRect.left - wrapperRect.left + cardRect.width / 2;
+        const cardY = cardRect.top - wrapperRect.top; // Connect to the top center of card
+
+        // Parse specific "why" or reasoning for each match.
+        // We'll extract a short snippet from cardRec.whyFits (rationale)
+        let shortWhy = '';
+        if (cardRec.whyFits) {
+          const sentences = cardRec.whyFits.split(/[.!?]/).map(s => s.trim()).filter(Boolean);
+          // Pick first sentence as the concise floating label
+          if (sentences.length > 0) {
+            shortWhy = sentences[0];
+            if (shortWhy.length > 80) {
+              shortWhy = shortWhy.slice(0, 77) + '...';
+            }
+          }
+        }
+
+        chipElements.forEach(chipEl => {
+          const chipType = chipEl.getAttribute('data-chip-type');
+          const chipVal = chipEl.getAttribute('data-chip-val') || '';
+
+          // Determine if there is a match connection.
+          // Education & experience are baseline inputs, work style & risk tolerance are lifestyle indicators.
+          // Let's connect them if the card's rationale/title contains terms matching the chip text.
+          // Fallback: Connect Education and Experience always to display baseline fits, and workStyle/risk if matched.
+          let isConnected = false;
+          const cleanVal = chipVal.replace(/Risk:\s*/i, '').toLowerCase();
+          const contextText = (cardTitle + ' ' + cardRec.whyFits + ' ' + (cardRec.gaps || []).join(' ')).toLowerCase();
+
+          if (chipType === 'education' || chipType === 'experience') {
+            // Baseline connection
+            isConnected = true;
+          } else {
+            // Conditional matching connection
+            isConnected = contextText.includes(cleanVal);
+          }
+
+          if (isConnected) {
+            const chipRect = chipEl.getBoundingClientRect();
+            const chipX = chipRect.left - wrapperRect.left + chipRect.width / 2;
+            const chipY = chipRect.top - wrapperRect.top + chipRect.height; // Connect to bottom center of chip
+
+            // Calculate control points for a smooth cubic bezier curve
+            const cp1x = chipX;
+            const cp1y = chipY + (cardY - chipY) / 2;
+            const cp2x = cardX;
+            const cp2y = cardY - (cardY - chipY) / 2;
+
+            const pathData = `M ${chipX} ${chipY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cardX} ${cardY}`;
+
+            // Floating label position (midpoint of bezier curve)
+            const t = 0.5;
+            const labelX = (1-t)**3 * chipX + 3*(1-t)**2*t * cp1x + 3*(1-t)*t**2 * cp2x + t**3 * cardX;
+            const labelY = (1-t)**3 * chipY + 3*(1-t)**2*t * cp1y + 3*(1-t)*t**2 * cp2y + t**3 * cardY;
+
+            newLines.push({
+              id: `${chipType}-${chipVal}-${cardId}`,
+              pathData,
+              labelX,
+              labelY,
+              why: shortWhy || 'Direct Match'
+            });
+          }
+        });
+      });
+
+      setLines(newLines);
+    };
+
+    // Use ResizeObserver for wrapper size changes
+    const resizeObserver = new ResizeObserver(() => {
+      updateCoordinates();
+    });
+    resizeObserver.observe(wrapperRef.current);
+
+    // Watch window events
+    window.addEventListener('resize', updateCoordinates);
+    window.addEventListener('scroll', updateCoordinates, { passive: true });
+
+    // Initial setup with double animation frame to ensure children are fully rendered and positioned
+    let raf1 = requestAnimationFrame(() => {
+      let raf2 = requestAnimationFrame(updateCoordinates);
+      return () => cancelAnimationFrame(raf2);
+    });
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateCoordinates);
+      window.removeEventListener('scroll', updateCoordinates);
+      cancelAnimationFrame(raf1);
+    };
+  }, [parsedData, isStreaming, wrapperRef]);
+
+  return (
+    <div className="svg-overlay-container" style={{ width: dimensions.width, height: dimensions.height }}>
+      <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+        {lines.map(line => (
+          <path
+            key={line.id}
+            d={line.pathData}
+            className="connecting-line"
+          />
+        ))}
+      </svg>
+      {lines.map(line => (
+        <div
+          key={`label-${line.id}`}
+          className="floating-why-label"
+          style={{ left: line.labelX, top: line.labelY }}
+        >
+          {line.why}
+        </div>
       ))}
     </div>
   );
@@ -106,6 +337,7 @@ function ContextChips({ formData }) {
 
 export default function BentoGrid({ streamText, onReset, isStreaming, formData }) {
   const [parsedData, setParsedData] = useState([]);
+  const wrapperRef = React.useRef(null);
 
   useEffect(() => {
     if (!streamText) return;
@@ -122,15 +354,20 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
             whyFits: rec.rationale || '',
             gaps: rec.skillsGap || [],
             roadmap: rec.firstStep ? [rec.firstStep] : [],
+            targetPositions: rec.targetPositions || [],
+            topPayingCompanies: rec.topPayingCompanies || [],
+            salaryRange: rec.salaryRange || ''
           }))
         );
         return;
       }
     } catch (_) {}
 
-    // 2. Streaming partial parse via regex
+    // 2. Streaming partial parse via regex (handles variable streaming lengths)
+    // We parse titles, matchScore, rationale, skillsGap, firstStep. Since targetPositions and topPayingCompanies are arrays of strings,
+    // we also check for their pattern inside the stream.
     const objectRegex =
-      /\{\s*"title"\s*:\s*"([\s\S]*?)"\s*,\s*"matchScore"\s*:\s*(\d+)\s*,\s*"rationale"\s*:\s*"([\s\S]*?)"\s*,\s*"skillsGap"\s*:\s*\[([\s\S]*?)\]\s*(?:,\s*"firstStep"\s*:\s*"([\s\S]*?)")?\s*\}/g;
+      /\{\s*"title"\s*:\s*"([\s\S]*?)"\s*,\s*"matchScore"\s*:\s*(\d+)\s*,\s*"rationale"\s*:\s*"([\s\S]*?)"\s*,\s*"skillsGap"\s*:\s*\[([\s\S]*?)\]\s*(?:,\s*"firstStep"\s*:\s*"([\s\S]*?)")?\s*(?:,\s*"targetPositions"\s*:\s*\[([\s\S]*?)\])?\s*(?:,\s*"topPayingCompanies"\s*:\s*\[([\s\S]*?)\])?\s*(?:,\s*"salaryRange"\s*:\s*"([\s\S]*?)")?\s*\}/g;
 
     const results = [];
     let match;
@@ -139,6 +376,13 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
       const gaps = match[4]
         ? match[4].split(',').map(s => s.replace(/["'\[\]]/g, '').trim()).filter(Boolean)
         : [];
+      const targetPositions = match[6]
+        ? match[6].split(',').map(s => s.replace(/["'\[\]]/g, '').trim()).filter(Boolean)
+        : [];
+      const topPayingCompanies = match[7]
+        ? match[7].split(',').map(s => s.replace(/["'\[\]]/g, '').trim()).filter(Boolean)
+        : [];
+
       results.push({
         id: idx++,
         title: match[1].trim(),
@@ -146,6 +390,9 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
         whyFits: match[3].trim(),
         gaps,
         roadmap: match[5] ? [match[5].trim()] : [],
+        targetPositions,
+        topPayingCompanies,
+        salaryRange: match[8] ? match[8].trim() : ''
       });
     }
     if (results.length > 0) setParsedData(results);
@@ -156,7 +403,15 @@ export default function BentoGrid({ streamText, onReset, isStreaming, formData }
   const skeletonCount = isStreaming ? Math.max(0, 3 - resolvedCount) : 0;
 
   return (
-    <div>
+    <div className="bento-grid-wrapper" ref={wrapperRef}>
+      {resolvedCount > 0 && (
+        <SvgOverlay
+          wrapperRef={wrapperRef}
+          parsedData={parsedData}
+          isStreaming={isStreaming}
+        />
+      )}
+
       <div className="results-reset-row">
         <div className="results-header">
           <h1 className="results-title">Your Career Matches</h1>

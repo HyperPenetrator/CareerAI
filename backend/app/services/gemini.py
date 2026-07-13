@@ -30,6 +30,13 @@ class GeminiService:
         raw_ws     = questionnaire.get("workStyle", [])
         work_style = ", ".join(raw_ws) if isinstance(raw_ws, list) else str(raw_ws)
 
+        # Geolocation metadata
+        loc_data = questionnaire.get("location", {})
+        loc_name = loc_data.get("name") or "National Average"
+        lat = loc_data.get("latitude")
+        lon = loc_data.get("longitude")
+        loc_details = f"{loc_name} (Coordinates: {lat}, {lon})" if lat and lon else loc_name
+
         # ── Mock mode (no API key configured) ──────────────────────────────
         if not self.api_key:
             mock_json = {
@@ -44,7 +51,10 @@ class GeminiService:
                             "a strong fit with established tech companies."
                         ),
                         "skillsGap": ["Cloud Deployment (AWS / GCP)", "CI/CD pipeline setup", "System design fundamentals"],
-                        "firstStep": "Build and deploy one full-stack project end-to-end and publish it on GitHub with a clear README."
+                        "firstStep": "Build and deploy one full-stack project end-to-end and publish it on GitHub with a clear README.",
+                        "targetPositions": ["Junior Web Developer", "Frontend Architect", "Backend Systems Engineer"],
+                        "topPayingCompanies": ["Google", "Stripe", "Atlassian"],
+                        "salaryRange": f"£48,000 - £75,000 (Localized for {loc_name})"
                     },
                     {
                         "title": "AI/ML Solutions Engineer",
@@ -55,7 +65,10 @@ class GeminiService:
                             f"Your {experience} of experience means you can transition into applied AI without starting from scratch."
                         ),
                         "skillsGap": ["Python ML ecosystem (PyTorch / HuggingFace)", "Prompt engineering & RAG patterns", "Vector database basics"],
-                        "firstStep": "Complete the fast.ai Practical Deep Learning course and integrate a small Gemini-powered feature into an existing project."
+                        "firstStep": "Complete the fast.ai Practical Deep Learning course and integrate a small Gemini-powered feature into an existing project.",
+                        "targetPositions": ["Applied AI Engineer", "MLOps Engineer", "Generative AI Architect"],
+                        "topPayingCompanies": ["OpenAI", "Anthropic", "Meta"],
+                        "salaryRange": f"£65,000 - £95,000 (Localized for {loc_name})"
                     },
                     {
                         "title": "Technical Product Manager",
@@ -66,7 +79,10 @@ class GeminiService:
                             f"A {risk} risk profile suits the stable, high-leverage PM career track well."
                         ),
                         "skillsGap": ["User story mapping", "OKR / roadmap frameworks", "Stakeholder communication"],
-                        "firstStep": "Take the Google PM Certificate and draft a product spec for your current or a hypothetical side project."
+                        "firstStep": "Take the Google PM Certificate and draft a product spec for your current or a hypothetical side project.",
+                        "targetPositions": ["Associate Product Manager", "Technical PM", "Director of Product Management"],
+                        "topPayingCompanies": ["Microsoft", "Amazon", "Uber"],
+                        "salaryRange": f"£55,000 - £85,000 (Localized for {loc_name})"
                     }
                 ]
             }
@@ -96,6 +112,9 @@ class GeminiService:
             "  • Each rationale must explicitly reference the user's specific skills, interests, and work-style.\n"
             "  • skillsGap must list 2–5 concrete, learnable skills the person still needs for this path.\n"
             "  • firstStep must be one actionable sentence the user can begin this week.\n"
+            "  • targetPositions must list 2-3 specific roles or titles matching this path.\n"
+            "  • topPayingCompanies must list 2-3 top hiring/compensating companies for this path.\n"
+            "  • salaryRange must be an estimated annual salary range (e.g. £45,000 - £65,000 or $80,000 - $110,000) localized explicitly for the user's target geographic area/coordinates if provided. If not provided, fallback to the national average. Explicitly mention the location name in the string.\n"
             "  • Respect the risk tolerance: Low → stable established roles; Moderate → growth roles at established companies; High → startup / freelance / entrepreneurial paths.\n\n"
             "OUTPUT FORMAT — return ONLY valid JSON, no markdown fences, no extra prose:\n"
             "{\n"
@@ -105,7 +124,10 @@ class GeminiService:
             "      \"matchScore\": integer between 60 and 98,\n"
             "      \"rationale\": \"2–3 sentences referencing the user's specific skills, interests, and work-style\",\n"
             "      \"skillsGap\": [\"string\", \"string\"],\n"
-            "      \"firstStep\": \"single actionable sentence\"\n"
+            "      \"firstStep\": \"single actionable sentence\",\n"
+            "      \"targetPositions\": [\"string\", \"string\"],\n"
+            "      \"topPayingCompanies\": [\"string\", \"string\"],\n"
+            "      \"salaryRange\": \"string\"\n"
             "    }\n"
             "  ]\n"
             "}"
@@ -118,7 +140,8 @@ class GeminiService:
             f"- Skills:          {skills}\n"
             f"- Interests:       {interests}\n"
             f"- Work-Style:      {work_style}\n"
-            f"- Risk Tolerance:  {risk}\n\n"
+            f"- Risk Tolerance:  {risk}\n"
+            f"- Location Context:{loc_details}\n\n"
             f"Apply the scoring rubric and quality rules from your instructions to recommend 3–5 best-fit career paths for this person."
         )
 
